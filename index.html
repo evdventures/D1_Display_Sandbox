@@ -77,7 +77,6 @@
           let i = row + 2;
           const sections = [];
 
-          
           while (i < rows.length) {
             const possibleClassName = (rows[i]?.[col] || '').toLowerCase();
             const isNewClass = ['adult', 'devo', 'rookie', 'youth'].some(c => possibleClassName === c);
@@ -101,32 +100,8 @@
             }
 
             sections.push({ title: sectionTitle, workouts });
-            while (i < rows.length && !rows[i][col]) i++;  // skip extra blanks
-          }
-    
-            const header = rows[i][col]?.trim();
-            if (!header) {
-              i++;
-              continue;
-            }
 
-            // Detect section title
-            const workouts = [];
-            i++;
-            while (i < rows.length && rows[i][col]) {
-              const name = rows[i][col]?.trim();
-              const reps = rows[i][col + 1]?.trim();
-              if (name || reps) workouts.push({ name, reps });
-              i++;
-            }
-
-            sections.push({ title: header, workouts });
-            i++; // skip blank
-
-            // Peek ahead for next class name
-            const peek = (rows[i]?.[col] || "").toLowerCase();
-            const isLikelyClass = ['adult', 'devo', 'rookie', 'youth'].some(c => peek.includes(c));
-            if (isLikelyClass) break;
+            while (i < rows.length && !rows[i][col]) i++;  // skip blanks
           }
 
           if (!dataByDay[day]) dataByDay[day] = [];
