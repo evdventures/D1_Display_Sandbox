@@ -45,103 +45,130 @@
   </style>
 </head>
 <body>
-  <!-- Dynamic weekday header -->
   <h1 id="day-header"></h1>
   <div id="classes"></div>
 
   <script>
     const sheetCSVUrl = "https://docs.google.com/spreadsheets/d/1mwvK5-BoAZDD_avzW9qSsdjGttC_NJg3W4GhKISXbAE/export?format=csv";
     let classIndex = 0;
+    let dataByDay = null;
 
     async function fetchAndParseCSV() {
       const res = await fetch(sheetCSVUrl);
       const text = await res.text();
       const rows = text.split('\n').map(r => r.split(','));
-      const dataByDay = {};
+      const parsed = {};
+      const knownSections = ['warm-up','performance','strength','core & conditioning','cool-down'];
+      const knownClasses = ['adult','devo','rookie','youth'];
+
       for (let col = 0; col < rows[0].length; col += 2) {
         const day = rows[0][col]?.trim();
         if (!day) continue;
         let row = 1;
         while (row < rows.length - 2) {
           const className = rows[row][col]?.trim();
-          const startRaw = rows[row + 1]?.[col]?.trim();
-          const endRaw = rows[row + 1]?.[col + 1]?.trim();
+          const startRaw = rows[row+1]?.[col]?.trim();
+          const endRaw = rows[row+1]?.[col+1]?.trim();
           const start = normalizeTime(startRaw);
           const end = normalizeTime(endRaw);
           if (!className || !start || !end) { row++; continue; }
           let i = row + 2;
           const sections = [];
-          const knownSections = ['warm-up','performance','strength','core & conditioning','cool-down'];
+
           while (i < rows.length) {
             const colA = (rows[i]?.[col] || '').trim();
             const colB = (rows[i]?.[col+1] || '').trim();
             const norm = colA.toLowerCase().trim();
-            if (!colA && !colB) { i++; continue; }
-            // detect new class start
-            const isNewClass = ['adult','devo','rookie','youth'].some(c=> norm===c);
-            if (isNewClass) break;
-            // detect section header
-            const isSection = knownSections.some(s=> norm.includes(s));
-            if (isSection) {
+            // new class starts
+            if (knownClasses.includes(norm)) break;
+            // section header
+            if (knownSections.some(s => norm.includes(s))) {
               const title = colA;
               const workouts = [];
               i++;
               while (i < rows.length) {
-                const name = (rows[i]?.[col]||'').trim();
-                const reps = (rows[i]?.[col+1]||'').trim();
-                const nextClass = ['adult','devo','rookie','youth'].some(c=> name.toLowerCase().trim()===c);
-                const nextSection = knownSections.some(s=> name.toLowerCase().includes(s));
-                if (nextClass||nextSection) break;
-                if (name||reps) workouts.push({name,reps});
+                const name = (rows[i]?.[col] || '').trim();
+                const reps = (rows[i]?.[col+1] || '').trim();
+                const nextNorm = name.toLowerCase().trim();
+                if (knownClasses.includes(nextNorm) || knownSections.some(s => nextNorm.includes(s))) break;
+                if (name || reps) workouts.push({ name, reps });
                 i++;
               }
-              sections.push({title,workouts});
+              sections.push({ title, workouts });
             } else {
               i++;
             }
           }
-          if (!dataByDay[day]) dataByDay[day]=[];
-          dataByDay[day].push({name:className, start:end?start:'', end:end, sections});
+
+          if (!parsed[day]) parsed[day] = [];
+          parsed[day].push({ name: className, start, end, sections });
           row = i;
         }
       }
-      return dataByDay;
+      return parsed;
     }
 
     function normalizeTime(t) {
       if (!t) return '';
-      const [h,m]=t.split(':');
+      const [h,m] = t.split(':');
       return `${h.padStart(2,'0')}:${(m||'00').padStart(2,'0')}`;
     }
+
     function getCurrentDayTime() {
-      const now=new Date();
-      return {day: now.toLocaleString('en-US',{weekday:'long'}), time: now.toTimeString().slice(0,5)};
-    }
-    function isClassActive(c, t) { return c.start<=t&&c.end>=t; }
-
-    function renderWorkouts(sec) {
-      const safe=sec.title.trim();
-      return `<div class="section"><div class="section-title">${safe}</div>${sec.workouts.map(w=>`<div class="workout"><span>${w.name}</span><span>${w.reps}</span></div>`).join('')}</div>`;
-    }
-    function renderClass(c) { return `<div class="class-block"><div class="class-header">${c.name} (${c.start} - ${c.end})</div>${c.sections.map(renderWorkouts).join('')}</div>`; }
-
-    function setDayHeader(){ document.getElementById('day-header').textContent=
-      new Date().toLocaleString('en-US',{weekday:'long'});
+      const now = new Date();
+      return {
+        day: now.toLocaleString('en-US',{ weekday:'long' }),
+        time: now.toTimeString().slice(0,5)
+      };
     }
 
-    // initial load and rotation
-    updateDisplay().then(()=>{ setInterval(updateDisplay,15000); });
+    function isClassActive(c, t) {
+      return c.start <= t && c.end >= t;
+    }
+
+    function renderWorkouts(section) {
+      return `<div class="section">
+        <div class="section-title">${section.title}</div>
+        ${section.workouts.map(w => `<div class="workout"><span>${w.name}</span><span>${w.reps}</span></div>`).join('')}
+      </div>`;
+    }
+
+    function renderClass(c) {
+      return `<div class="class-block">
+        <div class="class-header">${c.name} (${c.start} - ${c.end})</div>
+        ${c.sections.map(renderWorkouts).join('')}
+      </div>`;
+    }
 
     async function updateDisplay() {
-      setDayHeader();
-      const {day,time}=getCurrentDayTime();
-      const all=dataByDay?dataByDay: await fetchAndParseCSV();
-      const today=(await fetchAndParseCSV())[day]||[];
-      const active=today.filter(c=>isClassActive(c,time));
-      document.getElementById('classes').innerHTML=
-        active.length? renderClass(active[classIndex%active.length]) : '<p>No current classes.</p>';
-      classIndex++;
+      // set header
+      const now = new Date();
+      document.getElementById('day-header').textContent = now.toLocaleString('en-US',{ weekday:'long' });
+
+      // load data once
+      if (!dataByDay) {
+        dataByDay = await fetchAndParseCSV();
+      }
+
+      // filter today's classes
+      const { day, time } = getCurrentDayTime();
+      const today = dataByDay[day] || [];
+      const active = today.filter(c => isClassActive(c, time));
+
+      // render
+      const container = document.getElementById('classes');
+      if (active.length === 0) {
+        container.innerHTML = '<p>No current classes.</p>';
+      } else {
+        const cls = active[classIndex % active.length];
+        container.innerHTML = renderClass(cls);
+        classIndex++;
+      }
     }
+
+    // initial and interval
+    updateDisplay();
+    setInterval(updateDisplay, 15000);
   </script>
 </body>
 </html>
