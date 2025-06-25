@@ -62,26 +62,55 @@
         if (!day) continue;
 
         let row = 1;
-        while (row < rows.length - 1) {
+        while (row < rows.length - 2) {
           const className = rows[row][col]?.trim();
-          const startTime = normalizeTime(rows[row + 1]?.[col]?.trim());
-          const endTime = normalizeTime(rows[row + 1]?.[col + 1]?.trim());
+          const startTimeRaw = rows[row + 1]?.[col]?.trim();
+          const endTimeRaw = rows[row + 1]?.[col + 1]?.trim();
+          const startTime = normalizeTime(startTimeRaw);
+          const endTime = normalizeTime(endTimeRaw);
 
           if (!className || !startTime || !endTime) {
-            row += 1;
+            row++;
             continue;
           }
 
           let i = row + 2;
           const sections = [];
 
+          
           while (i < rows.length) {
+            const possibleClassName = (rows[i]?.[col] || '').toLowerCase();
+            const isNewClass = ['adult', 'devo', 'rookie', 'youth'].some(c => possibleClassName === c);
+            if (isNewClass) break;
+
             const sectionTitle = rows[i][col]?.trim();
             if (!sectionTitle) {
               i++;
               continue;
             }
 
+            const workouts = [];
+            i++;
+            while (i < rows.length) {
+              const line = rows[i][col]?.trim();
+              const reps = rows[i][col + 1]?.trim();
+              const isNextClass = ['adult', 'devo', 'rookie', 'youth'].some(c => (line || '').toLowerCase() === c);
+              if (isNextClass) break;
+              if (line || reps) workouts.push({ name: line, reps });
+              i++;
+            }
+
+            sections.push({ title: sectionTitle, workouts });
+            while (i < rows.length && !rows[i][col]) i++;  // skip extra blanks
+          }
+    
+            const header = rows[i][col]?.trim();
+            if (!header) {
+              i++;
+              continue;
+            }
+
+            // Detect section title
             const workouts = [];
             i++;
             while (i < rows.length && rows[i][col]) {
@@ -91,9 +120,13 @@
               i++;
             }
 
-            sections.push({ title: sectionTitle, workouts });
-            i++; // skip blank row after section
-            if ((rows[i]?.[col] || '').match(/^(Adult|Devo|Rookie|Youth|.*)$/i)) break; // next class
+            sections.push({ title: header, workouts });
+            i++; // skip blank
+
+            // Peek ahead for next class name
+            const peek = (rows[i]?.[col] || "").toLowerCase();
+            const isLikelyClass = ['adult', 'devo', 'rookie', 'youth'].some(c => peek.includes(c));
+            if (isLikelyClass) break;
           }
 
           if (!dataByDay[day]) dataByDay[day] = [];
