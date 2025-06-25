@@ -87,8 +87,16 @@
             const isNewClass = ['adult', 'devo', 'rookie', 'youth'].some(c => possibleClassName === c);
             if (isNewClass) break; // break inner, not outer
 
-            const sectionTitle = rows[i][col]?.trim();
-            if (!sectionTitle) {
+            
+            const colA = (rows[i]?.[col] || '').trim();
+            const colB = (rows[i]?.[col + 1] || '').trim();
+            
+            const knownSections = ['warm-up', 'performance', 'strength', 'core & conditioning', 'cool-down'];
+            const isSectionHeader = knownSections.includes(colA.toLowerCase());
+
+            const sectionTitle = isSectionHeader ? colA : null;
+
+            if (!sectionTitle) { /* skip if not a header */
               i++;
               continue;
             }
