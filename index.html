@@ -36,9 +36,6 @@
       color: #fff;
       border-bottom: 1px solid #555;
       padding-bottom: 4px;
-      font-weight: bold;
-      text-transform: uppercase;
-      margin-bottom: 5px;
     }
     .workout {
       display: flex;
@@ -81,40 +78,35 @@
 
           let i = row + 2;
           const sections = [];
+          const knownSections = ['warm-up', 'performance', 'strength', 'core & conditioning', 'cool-down'];
 
           while (i < rows.length) {
-            const possibleClassName = (rows[i]?.[col] || '').toLowerCase();
-            const isNewClass = ['adult', 'devo', 'rookie', 'youth'].some(c => possibleClassName === c);
-            if (isNewClass) break; // break inner, not outer
-
-            
             const colA = (rows[i]?.[col] || '').trim();
             const colB = (rows[i]?.[col + 1] || '').trim();
-            
-            const knownSections = ['warm-up', 'performance', 'strength', 'core & conditioning', 'cool-down'];
-            const isSectionHeader = knownSections.includes(colA.toLowerCase());
+            const normalized = colA.toLowerCase().trim();
+            const isSectionHeader = knownSections.some(s => normalized.includes(s));
 
-            const sectionTitle = isSectionHeader ? colA : null;
+            if (!colA && !colB) { i++; continue; }
 
-            if (!sectionTitle) { /* skip if not a header */
+            if (isSectionHeader) {
+              const sectionTitle = colA;
+              const workouts = [];
               i++;
-              continue;
-            }
 
-            const workouts = [];
-            i++;
-            while (i < rows.length) {
-              const line = rows[i][col]?.trim();
-              const reps = rows[i][col + 1]?.trim();
-              const isNextClass = ['adult', 'devo', 'rookie', 'youth'].some(c => (line || '').toLowerCase() === c);
-              if (isNextClass) break;
-              if (line || reps) workouts.push({ name: line, reps });
+              while (i < rows.length) {
+                const line = rows[i]?.[col]?.trim();
+                const reps = rows[i]?.[col + 1]?.trim();
+                const newClass = ['adult', 'devo', 'rookie', 'youth'].some(c => (line || '').toLowerCase() === c);
+                const nextSection = knownSections.some(s => (line || '').toLowerCase().includes(s));
+                if (newClass || nextSection) break;
+                if (line || reps) workouts.push({ name: line, reps });
+                i++;
+              }
+
+              sections.push({ title: sectionTitle, workouts });
+            } else {
               i++;
             }
-
-            sections.push({ title: sectionTitle, workouts });
-
-            while (i < rows.length && !rows[i][col]) i++;  // skip blanks
           }
 
           if (!dataByDay[day]) dataByDay[day] = [];
@@ -143,11 +135,8 @@
       return cls.start <= time && cls.end >= time;
     }
 
-    
     function renderWorkouts(section) {
       const safeTitle = (section.title || '').trim();
-
-      
       return `<div class="section">
         <div class="section-title">${safeTitle}</div>
         ${section.workouts.map(w => `<div class="workout"><span>${w.name}</span><span>${w.reps}</span></div>`).join('')}
