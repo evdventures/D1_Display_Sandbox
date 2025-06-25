@@ -80,7 +80,7 @@
           while (i < rows.length) {
             const possibleClassName = (rows[i]?.[col] || '').toLowerCase();
             const isNewClass = ['adult', 'devo', 'rookie', 'youth'].some(c => possibleClassName === c);
-            if (isNewClass) break;
+            if (isNewClass) break; // break inner, not outer
 
             const sectionTitle = rows[i][col]?.trim();
             if (!sectionTitle) {
@@ -131,7 +131,7 @@
     }
 
     function renderWorkouts(section) {
-      if (!section.workouts.length) return '';
+      
       return `<div class="section">
         <div class="section-title">${section.title}</div>
         ${section.workouts.map(w => `<div class="workout"><span>${w.name}</span><span>${w.reps}</span></div>`).join('')}
