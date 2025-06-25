@@ -178,8 +178,12 @@
       classIndex++;
     }
 
-    updateDisplay();
-    setInterval(updateDisplay, 15000); // rotate every 15 seconds
+    
+    (async function main() {
+      await updateDisplay();
+      setInterval(updateDisplay, 15000);
+    })();
+ // rotate every 15 seconds
   </script>
 </body>
 </html>
