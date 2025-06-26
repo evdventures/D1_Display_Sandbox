@@ -5,43 +5,12 @@
   <title>Workout Display</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    body {
-      font-family: sans-serif;
-      background-color: #111;
-      color: white;
-      padding: 20px;
-    }
-    .class-block {
-      border: 1px solid #333;
-      margin-bottom: 20px;
-      padding: 20px;
-      background-color: #222;
-      border-radius: 8px;
-    }
-    .class-header {
-      font-size: 3em;
-      margin-bottom: 10px;
-      text-align: center;
-      text-transform: uppercase;
-      border-bottom: 1px solid #555;
-      padding-bottom: 10px;
-    }
-    .section {
-      margin-bottom: 48px;
-    }
-    .section-title {
-      font-weight: bold;
-      font-size: 1.8em;
-      color: #fff;
-      border-bottom: 1px solid #555;
-      padding-bottom: 4px;
-    }
-    .workout {
-      font-size: 1.5em;
-      display: flex;
-      justify-content: space-between;
-      padding: 3px 0;
-    }
+    body { font-family: sans-serif; background-color: #111; color: white; padding: 20px; }
+    .class-block { border: 1px solid #333; margin-bottom: 20px; padding: 20px; background-color: #222; border-radius: 8px; }
+    .class-header { font-size: 3em; margin-bottom: 10px; text-align: center; text-transform: uppercase; border-bottom: 1px solid #555; padding-bottom: 10px; }
+    .section { margin-bottom: 48px; }
+    .section-title { font-weight: bold; font-size: 1.8em; color: #fff; border-bottom: 1px solid #555; padding-bottom: 4px; }
+    .workout { font-size: 1.5em; display: flex; justify-content: space-between; padding: 3px 0; }
   </style>
 </head>
 <body>
@@ -49,124 +18,88 @@
   <div id="classes"></div>
 
   <script>
-    const sheetCSVUrl = "https://docs.google.com/spreadsheets/d/1mwvK5-BoAZDD_avzW9qSsdjGttC_NJg3W4GhKISXbAE/export?format=csv";
+    // Google Sheets CSV export URLs: replace <GID> with each sheet's gid
+    const SHEET_ID = '1mwvK5-BoAZDD_avzW9qSsdjGttC_NJg3W4GhKISXbAE';
+    const csvUrls = {
+      schedule: `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=<SCHEDULE_GID>`,
+      Adult:    `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=<ADULT_GID>`,
+      Devo:     `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=<DEVO_GID>`,
+      Rookie:   `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=<ROOKIE_GID>`,
+      Prep:     `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=<PREP_GID>`
+    };
+
     let classIndex = 0;
-    let dataByDay = null;
+    let scheduleData = null;
 
-    async function fetchAndParseCSV() {
-      const res = await fetch(sheetCSVUrl);
+    async function fetchCsv(url) {
+      const res = await fetch(url);
       const text = await res.text();
-      const rows = text.split('\n').map(r => r.split(','));
-      const parsed = {};
-      const knownSections = ['warm-up','performance','strength','core & conditioning','cool-down'];
-      const knownClasses = ['adult','devo','rookie','youth'];
-
-      for (let col = 0; col < rows[0].length; col += 2) {
-        const day = rows[0][col]?.trim();
-        if (!day) continue;
-        let row = 1;
-        while (row < rows.length - 2) {
-          const className = rows[row][col]?.trim();
-          const startRaw = rows[row+1]?.[col]?.trim();
-          const endRaw = rows[row+1]?.[col+1]?.trim();
-          const start = normalizeTime(startRaw);
-          const end = normalizeTime(endRaw);
-          if (!className || !start || !end) { row++; continue; }
-          let i = row + 2;
-          const sections = [];
-
-          while (i < rows.length) {
-            const colA = (rows[i]?.[col] || '').trim();
-            const colB = (rows[i]?.[col+1] || '').trim();
-            const norm = colA.toLowerCase().trim();
-            // new class starts
-            if (knownClasses.includes(norm)) break;
-            // section header
-            if (knownSections.some(s => norm.includes(s))) {
-              const title = colA;
-              const workouts = [];
-              i++;
-              while (i < rows.length) {
-                const name = (rows[i]?.[col] || '').trim();
-                const reps = (rows[i]?.[col+1] || '').trim();
-                const nextNorm = name.toLowerCase().trim();
-                if (knownClasses.includes(nextNorm) || knownSections.some(s => nextNorm.includes(s))) break;
-                if (name || reps) workouts.push({ name, reps });
-                i++;
-              }
-              sections.push({ title, workouts });
-            } else {
-              i++;
-            }
-          }
-
-          if (!parsed[day]) parsed[day] = [];
-          parsed[day].push({ name: className, start, end, sections });
-          row = i;
-        }
-      }
-      return parsed;
+      return text.split('\n').map(r => r.split(','));
     }
 
     function normalizeTime(t) {
       if (!t) return '';
-      const [h,m] = t.split(':');
+      const [h, m] = t.split(':');
       return `${h.padStart(2,'0')}:${(m||'00').padStart(2,'0')}`;
     }
 
     function getCurrentDayTime() {
       const now = new Date();
-      return {
-        day: now.toLocaleString('en-US',{ weekday:'long' }),
-        time: now.toTimeString().slice(0,5)
-      };
+      return { day: now.toLocaleString('en-US',{ weekday:'long' }), time: now.toTimeString().slice(0,5) };
     }
 
-    function isClassActive(c, t) {
-      return c.start <= t && c.end >= t;
+    function isActive(start, end, now) {
+      return start <= now && now <= end;
     }
 
-    function renderWorkouts(section) {
-      return `<div class="section">
-        <div class="section-title">${section.title}</div>
-        ${section.workouts.map(w => `<div class="workout"><span>${w.name}</span><span>${w.reps}</span></div>`).join('')}
-      </div>`;
+    async function loadSchedule() {
+      if (scheduleData) return scheduleData;
+      const rows = await fetchCsv(csvUrls.schedule);
+      scheduleData = rows.slice(1).map(r => ({ name: r[0].trim(), day: r[1].trim(), start: normalizeTime(r[2].trim()), end: normalizeTime(r[3].trim()) }));
+      return scheduleData;
     }
 
-    function renderClass(c) {
-      return `<div class="class-block">
-        <div class="class-header">${c.name} (${c.start} - ${c.end})</div>
-        ${c.sections.map(renderWorkouts).join('')}
-      </div>`;
+    async function loadWorkoutsForClass(className) {
+      const rows = await fetchCsv(csvUrls[className]);
+      const headers = rows[0].map(h => h.trim());
+      const dayIdx = headers.findIndex(h => h.toLowerCase() === getCurrentDayTime().day.toLowerCase());
+      const sections = [];
+      for (let i = 1; i < rows.length; i++) {
+        const section = rows[i][0].trim(); if (!section) continue;
+        const cell = rows[i][dayIdx] || '';
+        const workouts = cell.split(';').map(item => {
+          const [name, reps] = item.split('|').map(s => s.trim());
+          return { name, reps: reps || '' };
+        }).filter(w => w.name);
+        sections.push({ title: section, workouts });
+      }
+      return sections;
     }
 
     async function updateDisplay() {
-      // set header
-      const now = new Date();
-      document.getElementById('day-header').textContent = now.toLocaleString('en-US',{ weekday:'long' });
-
-      // load data once
-      if (!dataByDay) {
-        dataByDay = await fetchAndParseCSV();
-      }
-
-      // filter today's classes
       const { day, time } = getCurrentDayTime();
-      const today = dataByDay[day] || [];
-      const active = today.filter(c => isClassActive(c, time));
+      document.getElementById('day-header').textContent = day;
 
-      // render
+      const schedule = await loadSchedule();
+      const active = schedule.filter(s => s.day === day && isActive(s.start, s.end, time));
       const container = document.getElementById('classes');
       if (active.length === 0) {
         container.innerHTML = '<p>No current classes.</p>';
       } else {
         const cls = active[classIndex % active.length];
-        container.innerHTML = renderClass(cls);
+        const sections = await loadWorkoutsForClass(cls.name);
+        let html = `<div class="class-block"><div class="class-header">${cls.name} (${cls.start} - ${cls.end})</div>`;
+        for (const sec of sections) {
+          html += `<div class="section"><div class="section-title">${sec.title}</div>`;
+          for (const w of sec.workouts) html += `<div class="workout"><span>${w.name}</span><span>${w.reps}</span></div>`;
+          html += '</div>';
+        }
+        html += '</div>';
+        container.innerHTML = html;
         classIndex++;
       }
     }
 
-    // initial and interval
     updateDisplay();
     setInterval(updateDisplay, 15000);
   </script>
